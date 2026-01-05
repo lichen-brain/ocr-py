@@ -1,6 +1,9 @@
+import os
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+
+image_directory = '.\image'  # 图像读取目录
 
 # 图像预处理函数
 def preprocess_image(image_path):
@@ -85,5 +88,6 @@ def main(image_path):
     show_image(contour_image, title="Contours Image")
 
 if __name__ == "__main__":
-    image_path = 'your_image_path_here.jpg'  # 替换为你的图像路径
-    main(image_path)
+    for image_path in os.listdir(image_directory):
+        image_path = os.path.join(image_directory, image_path)
+        main(image_path)
