@@ -12,7 +12,6 @@ init()  # 初始化 colorama
 image_directory = '.\image'  # 图像读取目录
 
 
-
 # 预处理图像
 def preprocess_image(image_path):
     image = cv2.imread(image_path)
@@ -80,6 +79,7 @@ def main():
         key = cv2.waitKey(0) & 0xFF
         if key == ord('q'):  # 按 'q' 键退出
             break
+            
    
    
     cv2.destroyAllWindows()
