@@ -35,41 +35,28 @@ def preprocess_image(image_path):
         print(Fore.RED + f"Error: Unable to load image ({cnt_all_images})")
         return None
     print(Fore.GREEN + f"Image loaded successfully ({cnt_all_images})")
-    image = cv2.resize(image, (800, 600))
-    # 转换为灰度图像
-    image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    # ret_simple, thresh_simple = cv2.threshold(image_gray, 140, 255, cv2.THRESH_BINARY)
-
     
-    # thresh_adapt = cv2.adaptiveThreshold(image_gray, 255, 
-    #     cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, blocksize, 2)
-    # cv2.imshow("Adaptive Threshold", thresh_adapt)
+    image = cv2.resize(image, (800, 600))
+    
+    # 灰度化
+    image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # Black-hat, 去背景
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (35, 35))
+    image_blackhat = cv2.morphologyEx(image_gray, cv2.MORPH_BLACKHAT, kernel)
 
-    # Otsu二值化
-    # ret_otsu, image_otsu = cv2.threshold(image_gray, 0, 255,
-    #     cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    # # cv2.imshow("Otsu Image", image_otsu)
-    # image_preprocessed = image_otsu
+    # 轻度高斯滤波
+    image_blur = cv2.GaussianBlur(image_blackhat, (3, 3), 0, 0)
 
-    # 高斯滤波进行去噪 + 自适应二值化
-    image_blur = cv2.GaussianBlur(image_gray, (3, 3), 0, 0)
-    # ret_otsu, image_otsu = cv2.threshold(image_blur, 0, 255,
-    #     cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    image_adapt = cv2.adaptiveThreshold(image_gray, 255, 
-        cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 7, 5)
-    # cv2.imshow("Blurring + Otsu's Threshold", image_otsu)
-    image_preprocessed = image_adapt
+    # 自适应二值化
+    image_adapt = cv2.adaptiveThreshold(image_blur, 255, 
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, -20)
 
-    # # Otsu二值化 + 高斯滤波去噪
-    # ret_otsu, image_otsu = cv2.threshold(image_gray, 0, 255,
-    #     cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    # image_blur = cv2.GaussianBlur(image_otsu, (3, 3), 0, 0)
-    # #cv2.imshow("Otsu's Threshold + Blurring", image_blur)
-    # image_preprocessed = image_blur
+    # 形态学开运算，去除小噪点
+    kernel_open = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    image_open = cv2.morphologyEx(image_adapt, cv2.MORPH_OPEN, kernel_open)
 
-
-    return image_preprocessed, image
+    return image_open, image
 
 
 
@@ -77,7 +64,7 @@ def preprocess_image(image_path):
 # return -> [[],[]...] 每个文本行的范围行的列表(二维)  else return None
 # 大列表里装的是从第几行到第几行的二维列表
 def horizontal_projection(binary_image, h_min_ratio = 0.4):# 最小比例阈值
-    h_projection = np.sum(binary_image == 0, axis=1)   # 计算水平投影（每一行的黑像素点的数量）
+    h_projection = np.sum(binary_image > 0, axis=1)   # 计算水平投影 (每一行的白像素点的数量)(前景字符)
     h_max_val = np.max(h_projection)   # 水平投影最大值
     h_threshold = h_max_val * h_min_ratio  # 水平投影阈值
     rows = np.where(h_projection >= h_threshold)[0]   # 满足阈值的行索引
@@ -97,8 +84,8 @@ def horizontal_projection(binary_image, h_min_ratio = 0.4):# 最小比例阈值
 # 设置阈值，使用垂直投影分割字符(垂直投影) 
 # return -> [[[]],[[]]...] 每个字符的范围列的列表(三维)  else return []
 # 大列表里装的是每个字符区域的二维列表[起始列，结束列]
-def vertical_projection(binary_image, v_min_ratio = 0.3, v_min_width = 5):# 最小比例阈值, 最小宽度阈值
-    v_projection = np.sum(binary_image == 0, axis=0)   # 计算垂直投影（每一列的白像素点的数量）
+def vertical_projection(binary_image, v_min_ratio = 0.1, v_min_width = 5):# 最小比例阈值, 最小宽度阈值
+    v_projection = np.sum(binary_image > 0, axis=0)   # 计算垂直投影 (每一列的白像素点的数量)(前景字符)
     v_max_val = np.max(v_projection)   # 垂直投影最大值
     v_threshold = v_max_val * v_min_ratio  # 垂直投影阈值
     cols = np.where(v_projection >= v_threshold)[0]   # 满足阈值的列索引
@@ -151,15 +138,17 @@ def ocr_recongnition(binary_image):
         char = cv2.resize(char, None, fx = 2, fy = 2)   # 放大字符图像以提高识别率
         text_char = pytesseract.image_to_string(char, config=ocr_config)
         text += text_char.strip()
-        cv2.waitKey(1)  # 确保图像窗口能够显示出来
-
-        # if(char.shape[1] > 5 and char.shape[0] > 10):
-        #     cv2.imshow(f"Character {i}", char)
-        #     # 使用Tesseract进行OCR识别
-        #     char_text = pytesseract.image_to_string(char, config=ocr_config)
-        #     result += char_text.strip()
-        # else:
-        #     print(Fore.RED + f"Character {i} ROI is too small, skipped.")
+        # 按 'q' 键退出
+        key = cv2.waitKey(0) & 0xFF
+        if key == ord('q'):  
+            break
+            # if(char.shape[1] > 5 and char.shape[0] > 10):
+            #     cv2.imshow(f"Character {i}", char)
+            #     # 使用Tesseract进行OCR识别
+            #     char_text = pytesseract.image_to_string(char, config=ocr_config)
+            #     result += char_text.strip()
+            # else:
+            #     print(Fore.RED + f"Character {i} ROI is too small, skipped.")
 
     # text = pytesseract.image_to_string(binary_image, config=ocr_config)
     print(Fore.YELLOW + "Recognized Text:" + text)
@@ -201,12 +190,12 @@ def main():
         cv2.drawContours(image_contour, contours, -1, (0, 0, 255), 1)
 
 
-        ocr_recongnition(image_preprocess)
         # 预处理图片
         cv2.imshow("Preprocessed Image", image_preprocess)
         cv2.imshow("Contour Image", image_contour)
         # cv2.imshow("Original Image", image)
 
+        ocr_recongnition(image_preprocess)
         
         # 按 'q' 键退出
         key = cv2.waitKey(0) & 0xFF
