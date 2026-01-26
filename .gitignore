@@ -1,5 +1,10 @@
 .venv/
+.conda/
+__pycache__/
 .vscode/
+images/
 image/
 image_repo/
+output/
 temp.py
+psm.png
