@@ -5,11 +5,11 @@
 
 import sys
 from pathlib import Path
-from express_ocr_v2 import ExpressOCR
+from express_ocr import ExpressOCR
 
 def main():
     print("=" * 60)
-    print("快递单号识别系统 v2.0")
+    print("快递单号识别系统 v1.0")
     print("=" * 60)
     
     ocr = ExpressOCR()
@@ -35,8 +35,8 @@ def main():
         print(f"正确率: {ocr.cnt_true / ocr.cnt_all * 100:.2f}%")
         print("=" * 60)
         for r in results:
-            status = "✓" if r['tracking_numbers'] else "✗"
-            print(f"  {status} {Path(r['image_path']).name}: {r['tracking_numbers']}")
+            status = "✓" if r['is_true'] else " "
+            print(f"  {status} {Path(r['image_path']).name}: {r['tracking_numbers']}  ->  {r['barcode_number'] if not r['is_true'] else ''}")
 
 if __name__ == "__main__":
     main()
